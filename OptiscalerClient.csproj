@@ -54,7 +54,8 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <EmbeddedResource Include="assets\OptiScaler_example.ini" />
-    <AvaloniaResource Include="assets\**" />
+    <AvaloniaResource Include="assets\**" Exclude="assets\fsr4\**" />
+    <None Include="assets\fsr4\**" CopyToOutputDirectory="PreserveNewest" />
     <AvaloniaResource Include="Languages\**" />
   </ItemGroup>
 

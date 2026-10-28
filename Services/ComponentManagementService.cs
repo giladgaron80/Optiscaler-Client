@@ -37,6 +37,8 @@ namespace OptiscalerClient.Services
     {
         /// <summary>The tested INT8 FSR 4 build selected automatically for RDNA2 GPUs.</summary>
         public const string Rdna2PreferredExtrasVersion = "FSR_4.0.2c";
+        /// <summary>The FSR 4.1.2 INT8 / INT8 Lite build selected automatically for Ryzen Z2 Extreme (Z2E / RDNA 3.5) APUs.</summary>
+        public const string Z2ePreferredExtrasVersion = "FSR_4.1.2";
         private static readonly object _downloadLock = new();
         private static readonly System.Collections.Generic.HashSet<string> _activeOptiDownloads = new(StringComparer.OrdinalIgnoreCase);
         private static readonly object _configLock = new();
@@ -165,6 +167,13 @@ namespace OptiscalerClient.Services
         public string? GetRdna2PreferredExtrasVersion()
             => ExtrasAvailableVersions.FirstOrDefault(version =>
                 string.Equals(version, Rdna2PreferredExtrasVersion, StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>
+        /// Gets the FSR 4.1.2 INT8 / INT8 Lite build preferred for Ryzen Z2 Extreme (Z2E / RDNA 3.5) APUs.
+        /// </summary>
+        public string? GetZ2ePreferredExtrasVersion()
+            => ExtrasAvailableVersions.FirstOrDefault(version =>
+                string.Equals(version, Z2ePreferredExtrasVersion, StringComparison.OrdinalIgnoreCase));
 
         /// <summary>
         /// Gets the explicit model variant for a package. Existing cached/custom packages that
@@ -437,26 +446,104 @@ namespace OptiscalerClient.Services
 
         // ── Extras (FSR 4 Swap) cache ──────────────────────────────────────────────
 
-        private void LoadExtrasCache()
+        private void EnsureBundledExtrasPresent()
         {
-            if (_extrasCache.Releases.Count > 0) return;
-            var file = Path.Combine(_baseDir, "extras_cache.json");
-            if (!File.Exists(file)) return;
-            try
+            TryPopulateExtrasCacheFromBundledAssets(Z2ePreferredExtrasVersion);
+
+            if (!_extrasCache.Releases.Any(r =>
+                    string.Equals(r.Version, Z2ePreferredExtrasVersion, StringComparison.OrdinalIgnoreCase)))
             {
-                var json = File.ReadAllText(file);
-                var loaded = JsonSerializer.Deserialize(json, OptimizerContext.Default.ExtrasReleasesCache);
-                if (loaded != null)
+                _extrasCache.Releases.Add(new ExtrasReleaseEntry
                 {
-                    _extrasCache = loaded;
-                    RebuildInMemoryExtrasCache();
-                    DebugWindow.Log($"[ExtrasCache] Loaded {_extrasCache.Releases.Count} entries from local cache.");
+                    Version = Z2ePreferredExtrasVersion,
+                    DownloadUrl = "https://github.com/aby11364/fsr4-linux-handheld/releases/download/v1.0.0/fsr4-linux-handheld-1.0.0.zip",
+                    IsLatest = false,
+                    Variant = Fsr4DllVariant.Int8
+                });
+            }
+        }
+
+        private bool TryPopulateExtrasCacheFromBundledAssets(string version)
+        {
+            var extractDir = GetExtrasDllCachePath(version);
+            var cachedDx12 = Path.Combine(extractDir, Fsr4Int8DllHelper.CurrentFileName);
+            var cachedVk = Path.Combine(extractDir, Fsr4Int8DllHelper.VulkanFileName);
+            if (File.Exists(cachedDx12) && File.Exists(cachedVk))
+                return true;
+
+            var candidateDirs = new[]
+            {
+                Path.Combine(AppContext.BaseDirectory, "assets", "fsr4", version),
+                Path.Combine(Environment.CurrentDirectory, "assets", "fsr4", version)
+            };
+
+            foreach (var assetDir in candidateDirs)
+            {
+                if (!Directory.Exists(assetDir)) continue;
+                var bundledDx12 = Path.Combine(assetDir, Fsr4Int8DllHelper.CurrentFileName);
+                if (!File.Exists(bundledDx12)) continue;
+
+                if (string.Equals(version, Z2ePreferredExtrasVersion, StringComparison.OrdinalIgnoreCase))
+                {
+                    var fileVer = GameAnalyzerService.GetFileVersion(bundledDx12);
+                    if (!string.Equals(fileVer, "2.4.0.4370", StringComparison.OrdinalIgnoreCase) &&
+                        !fileVer.Contains("4.1.2", StringComparison.OrdinalIgnoreCase))
+                    {
+                        DebugWindow.Log($"[ExtrasCache] Skipping bundled {bundledDx12}: unexpected FileVersion '{fileVer}' (expected 2.4.0.4370).");
+                        continue;
+                    }
+                }
+
+                try
+                {
+                    Directory.CreateDirectory(extractDir);
+                    foreach (var fileName in Fsr4Int8DllHelper.KnownFileNames)
+                    {
+                        var src = Path.Combine(assetDir, fileName);
+                        if (!File.Exists(src)) continue;
+                        var dst = Path.Combine(extractDir, fileName);
+                        if (!File.Exists(dst))
+                            File.Copy(src, dst, overwrite: true);
+                    }
+                    return Fsr4Int8DllHelper.ExistsIn(extractDir);
+                }
+                catch (Exception ex)
+                {
+                    DebugWindow.Log($"[ExtrasCache] Failed to populate cache from bundled assets ({assetDir}): {ex.Message}");
                 }
             }
-            catch (Exception ex)
+
+            return Fsr4Int8DllHelper.ExistsIn(extractDir);
+        }
+
+        private void LoadExtrasCache()
+        {
+            if (_extrasCache.Releases.Count > 0)
             {
-                DebugWindow.Log($"[ExtrasCache] Failed to load: {ex.Message}");
+                EnsureBundledExtrasPresent();
+                RebuildInMemoryExtrasCache();
+                return;
             }
+            var file = Path.Combine(_baseDir, "extras_cache.json");
+            if (File.Exists(file))
+            {
+                try
+                {
+                    var json = File.ReadAllText(file);
+                    var loaded = JsonSerializer.Deserialize(json, OptimizerContext.Default.ExtrasReleasesCache);
+                    if (loaded != null)
+                    {
+                        _extrasCache = loaded;
+                        DebugWindow.Log($"[ExtrasCache] Loaded {_extrasCache.Releases.Count} entries from local cache.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugWindow.Log($"[ExtrasCache] Failed to load: {ex.Message}");
+                }
+            }
+            EnsureBundledExtrasPresent();
+            RebuildInMemoryExtrasCache();
         }
 
         private void SaveExtrasCache()
@@ -1271,7 +1358,7 @@ namespace OptiscalerClient.Services
         /// Returns true if the DLL for the given Extras version is already cached.
         /// </summary>
         public bool IsExtrasDllCached(string version)
-            => Fsr4Int8DllHelper.ExistsIn(GetExtrasDllCachePath(version));
+            => TryPopulateExtrasCacheFromBundledAssets(version) || Fsr4Int8DllHelper.ExistsIn(GetExtrasDllCachePath(version));
 
         /// <summary>
         /// Imports a manually-picked FSR 4 DLL package (a .zip/.7z/.rar archive — never a loose .dll,
@@ -1352,6 +1439,7 @@ namespace OptiscalerClient.Services
         /// </summary>
         public async Task<string> DownloadExtrasDllAsync(string version, IProgress<double>? progress = null)
         {
+            TryPopulateExtrasCacheFromBundledAssets(version);
             var extractDir = GetExtrasDllCachePath(version);
             var cachedDllPath = Fsr4Int8DllHelper.FindIn(extractDir);
 

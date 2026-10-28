@@ -6355,6 +6355,7 @@ namespace OptiscalerClient.Views
                         var preferredGpuForFsr4 = GpuSelectionHelper.GetPreferredGpu(_gpuService, _componentService.Config.DefaultGpuId);
                         var isRdna4 = GpuSelectionHelper.IsRdna4(preferredGpuForFsr4);
                         var isRdna2 = GpuSelectionHelper.IsRdna2(preferredGpuForFsr4);
+                        var isZ2eApu = GpuSelectionHelper.IsZ2eApu(preferredGpuForFsr4);
 
                         var quickInstallDlssEnablerCacheDir = string.Empty;
                         if (mfgWithEnabler)
@@ -6430,6 +6431,8 @@ namespace OptiscalerClient.Views
                         var configuredExtras = _componentService.Config.DefaultExtrasVersion;
                         if (configuredExtras == ComponentManagementService.LatestAvailableTag)
                             configuredExtras = await _componentService.ResolveLatestExtrasVersionAsync();
+                        else if (string.IsNullOrEmpty(configuredExtras) && isZ2eApu)
+                            configuredExtras = _componentService.GetZ2ePreferredExtrasVersion();
                         if (!string.IsNullOrEmpty(configuredExtras) && !configuredExtras.Equals("none", StringComparison.OrdinalIgnoreCase))
                         {
                             var configuredExtrasIsInt8 = _componentService.GetExtrasDllVariant(configuredExtras) == Fsr4DllVariant.Int8;
@@ -6439,21 +6442,37 @@ namespace OptiscalerClient.Views
                                 string extrasDllPath;
                                 var extrasProgress = new Progress<double>(p => UpdateToastProgress(string.Format(GetResourceString("TxtDownloadingExtrasFormat", "Downloading FSR 4 Swap v{0}... {1}%"), configuredExtras, (int)p), p));
                                 extrasDllPath = await _componentService.DownloadExtrasDllAsync(configuredExtras, extrasProgress);
+                                var packagedFiles = await _componentService.GetExtrasPackagedFileNamesAsync(configuredExtras, extrasProgress);
 
                                 // Copy into game directory
                                 var installSvc = new GameInstallationService();
                                 var gameDir = resolvedGameDir ?? installSvc.DetermineInstallDirectory(selectedGame) ?? selectedGame.InstallPath;
-                                var destPath = System.IO.Path.Combine(gameDir, System.IO.Path.GetFileName(extrasDllPath));
-                                if (!File.Exists(extrasDllPath))
-                                    throw new Exception("FSR 4 Swap package is corrupt or incomplete.");
-                                File.Copy(extrasDllPath, destPath, overwrite: true);
+                                if (packagedFiles.Count > 0)
+                                {
+                                    var cacheDir = _componentService.GetExtrasDllCachePath(configuredExtras);
+                                    var candidates = Fsr4Int8DllHelper.BuildSwapCandidates(GameInstallationService.ResolveExtrasRoot(gameDir), cacheDir, packagedFiles);
+                                    candidates = Fsr4Int8DllHelper.FilterCandidatesByDefaultKeys(candidates, _componentService.Config.Fsr4SwapDefaultFileKeys);
+                                    foreach (var candidate in candidates)
+                                    {
+                                        if (!File.Exists(candidate.SourceContentPath))
+                                            throw new Exception("FSR 4 Swap package is corrupt or incomplete.");
+                                        installSvc.InjectExtrasDll(selectedGame, gameDir, candidate.TargetPath, candidate.SourceContentPath);
+                                    }
+                                }
+                                else
+                                {
+                                    var destPath = System.IO.Path.Combine(gameDir, System.IO.Path.GetFileName(extrasDllPath));
+                                    if (!File.Exists(extrasDllPath))
+                                        throw new Exception("FSR 4 Swap package is corrupt or incomplete.");
+                                    installSvc.InjectExtrasDll(selectedGame, gameDir, destPath, extrasDllPath);
+                                }
                                 if (configuredExtrasIsInt8)
                                 {
                                     var customAmdxc64Path = _componentService.GetCachedCustomAmdxc64Path(configuredExtras);
                                     if (customAmdxc64Path != null)
                                         installSvc.InstallCustomAmdxc64(gameDir, customAmdxc64Path);
                                     // The fallback configuration only applies to INT8 packages.
-                                    installSvc.ConfigureFsr4IntFallback(gameDir, isRdna4, isRdna2);
+                                    installSvc.ConfigureFsr4IntFallback(gameDir, isRdna4, isRdna2, isZ2eApu);
                                 }
                                 selectedGame.Fsr4ExtraVersion = configuredExtras;
                                 ShowToast($"FSR 4 Swap v{configuredExtras} injected", showProgress: false, progressPercent: null);

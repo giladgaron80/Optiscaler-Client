@@ -420,13 +420,15 @@ namespace OptiscalerClient.Views
             {
                 bool isRdna4OrRdna3 = false;
                 bool isRdna2 = false;
-                if (OperatingSystem.IsWindows() && _gpuService != null)
+                bool isZ2eApu = false;
+                if (_gpuService != null)
                 {
                     try
                     {
                         var gpu = GpuSelectionHelper.GetPreferredGpu(_gpuService, _componentService.Config.DefaultGpuId);
                         isRdna4OrRdna3 = GpuSelectionHelper.IsRdna4(gpu) || GpuSelectionHelper.IsRdna3(gpu);
                         isRdna2 = GpuSelectionHelper.IsRdna2(gpu);
+                        isZ2eApu = GpuSelectionHelper.IsZ2eApu(gpu);
                     }
                     catch (Exception ex)
                     {
@@ -438,7 +440,9 @@ namespace OptiscalerClient.Views
                 {
                     var automaticVersion = isRdna2
                         ? _componentService.GetRdna2PreferredExtrasVersion()
-                        : versions.FirstOrDefault();
+                        : isZ2eApu
+                            ? (_componentService.GetZ2ePreferredExtrasVersion() ?? versions.FirstOrDefault())
+                            : versions.FirstOrDefault();
                     // +2: index 0 is "None", index 1 is "Latest version available", real versions start at 2.
                     targetIndex = automaticVersion == null ? 0 : versions.IndexOf(automaticVersion) + 2;
                 }

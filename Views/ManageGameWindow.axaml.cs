@@ -1994,6 +1994,7 @@ namespace OptiscalerClient.Views
             // Determine default selection
             bool isRdna4OrRdna3 = false;
             bool isRdna2 = false;
+            bool isZ2eApu = false;
             if (_gpuService != null)
             {
                 try
@@ -2001,6 +2002,7 @@ namespace OptiscalerClient.Views
                     var gpu = GpuSelectionHelper.GetPreferredGpu(_gpuService, componentService.Config.DefaultGpuId);
                     isRdna4OrRdna3 = GpuSelectionHelper.IsRdna4(gpu) || GpuSelectionHelper.IsRdna3(gpu);
                     isRdna2 = GpuSelectionHelper.IsRdna2(gpu);
+                    isZ2eApu = GpuSelectionHelper.IsZ2eApu(gpu);
                 }
                 catch (Exception ex) { DebugWindow.Log($"[ManageGame] GPU detection failed: {ex.Message}"); }
             }
@@ -2043,7 +2045,9 @@ namespace OptiscalerClient.Views
                         {
                             var automaticVersion = isRdna2
                                 ? componentService.GetRdna2PreferredExtrasVersion()
-                                : versions[0];
+                                : isZ2eApu
+                                    ? (componentService.GetZ2ePreferredExtrasVersion() ?? versions[0])
+                                    : versions[0];
                             targetIndex = automaticVersion == null ? 0 : versions.IndexOf(automaticVersion) + 1;
                         }
                     }
@@ -2057,7 +2061,9 @@ namespace OptiscalerClient.Views
                 {
                     var automaticVersion = isRdna2
                         ? componentService.GetRdna2PreferredExtrasVersion()
-                        : versions[0];
+                        : isZ2eApu
+                            ? (componentService.GetZ2ePreferredExtrasVersion() ?? versions[0])
+                            : versions[0];
                     targetIndex = automaticVersion == null ? 0 : versions.IndexOf(automaticVersion) + 1;
                 }
                 else
@@ -5300,6 +5306,7 @@ namespace OptiscalerClient.Views
                 var preferredGpuForFsr4 = GpuSelectionHelper.GetPreferredGpu(_gpuService, componentService.Config.DefaultGpuId);
                 var isRdna4 = GpuSelectionHelper.IsRdna4(preferredGpuForFsr4);
                 var isRdna2 = GpuSelectionHelper.IsRdna2(preferredGpuForFsr4);
+                var isZ2eApu = GpuSelectionHelper.IsZ2eApu(preferredGpuForFsr4);
 
                 var dlssEnablerCacheDir = string.Empty;
                 if (mfgWithEnabler)
@@ -5541,7 +5548,7 @@ namespace OptiscalerClient.Views
                                 if (customAmdxc64Path != null)
                                     installSvc.InstallCustomAmdxc64(gameDir, customAmdxc64Path);
                                 // The forcing keys are specific to the INT8 fallback path.
-                                installSvc.ConfigureFsr4IntFallback(gameDir, isRdna4, isRdna2);
+                                installSvc.ConfigureFsr4IntFallback(gameDir, isRdna4, isRdna2, isZ2eApu);
                             }
                             _game.Fsr4ExtraVersion = selectedExtrasVersion;
                         });

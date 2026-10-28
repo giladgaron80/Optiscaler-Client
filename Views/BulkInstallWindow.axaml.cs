@@ -834,6 +834,7 @@ public partial class BulkInstallWindow : Window, IGamepadInputHost
         var preferredGpuForFsr4 = GpuSelectionHelper.GetPreferredGpu(_gpuService, _componentService.Config.DefaultGpuId);
         var isRdna4ForFsr4 = GpuSelectionHelper.IsRdna4(preferredGpuForFsr4);
         var isRdna2ForFsr4 = GpuSelectionHelper.IsRdna2(preferredGpuForFsr4);
+        var isZ2eApuForFsr4 = GpuSelectionHelper.IsZ2eApu(preferredGpuForFsr4);
         // Streamline is no longer tied to "is this a Nightly version" — it's tied to whether
         // the shared FG configuration actually needs it for at least one selected game (either
         // FGInput=dlssg or FGOutput=dlssg). isNightlyChannel is kept separately only for the
@@ -1206,7 +1207,7 @@ public partial class BulkInstallWindow : Window, IGamepadInputHost
                             if (customAmdxc64Path != null)
                                 _installService.InstallCustomAmdxc64(gameDirForSwap, customAmdxc64Path);
                             // The fallback configuration only applies to INT8 packages.
-                            _installService.ConfigureFsr4IntFallback(gameDirForSwap, isRdna4ForFsr4, isRdna2ForFsr4);
+                            _installService.ConfigureFsr4IntFallback(gameDirForSwap, isRdna4ForFsr4, isRdna2ForFsr4, isZ2eApuForFsr4);
                         }
                         gameItem.Game.Fsr4ExtraVersion = selectedExtrasVersion;
                     });
@@ -2314,6 +2315,7 @@ public partial class BulkInstallWindow : Window, IGamepadInputHost
         // Determine default selection
         bool isRdna4OrRdna3 = false;
         bool isRdna2 = false;
+        bool isZ2eApu = false;
         if (_gpuService != null)
         {
             try
@@ -2321,6 +2323,7 @@ public partial class BulkInstallWindow : Window, IGamepadInputHost
                 var gpu = GpuSelectionHelper.GetPreferredGpu(_gpuService, _componentService.Config.DefaultGpuId);
                 isRdna4OrRdna3 = GpuSelectionHelper.IsRdna4(gpu) || GpuSelectionHelper.IsRdna3(gpu);
                 isRdna2 = GpuSelectionHelper.IsRdna2(gpu);
+                isZ2eApu = GpuSelectionHelper.IsZ2eApu(gpu);
             }
             catch (Exception ex) { DebugWindow.Log($"[BulkInstall] GPU detection failed: {ex.Message}"); }
         }
@@ -2356,7 +2359,9 @@ public partial class BulkInstallWindow : Window, IGamepadInputHost
                     {
                         var automaticVersion = isRdna2
                             ? _componentService.GetRdna2PreferredExtrasVersion()
-                            : versions[0];
+                            : isZ2eApu
+                                ? (_componentService.GetZ2ePreferredExtrasVersion() ?? versions[0])
+                                : versions[0];
                         targetIndex = automaticVersion == null ? 0 : versions.IndexOf(automaticVersion) + 1;
                     }
                 }
@@ -2370,7 +2375,9 @@ public partial class BulkInstallWindow : Window, IGamepadInputHost
             {
                 var automaticVersion = isRdna2
                     ? _componentService.GetRdna2PreferredExtrasVersion()
-                    : versions[0];
+                    : isZ2eApu
+                        ? (_componentService.GetZ2ePreferredExtrasVersion() ?? versions[0])
+                        : versions[0];
                 targetIndex = automaticVersion == null ? 0 : versions.IndexOf(automaticVersion) + 1;
             }
             else

@@ -30,6 +30,7 @@ namespace OptiscalerClient.Helpers
     {
         public const string LegacyFileName = "amd_fidelityfx_upscaler_dx12.dll";
         public const string CurrentFileName = "amdxcffx64.dll";
+        public const string VulkanFileName = "amdvkffx64.dll";
         /// <summary>Monolithic FSR 3.1 SDK DLL name that many games hardcode; a swap target, never a package file.</summary>
         public const string MonolithicFileName = "amd_fidelityfx_dx12.dll";
 
@@ -53,7 +54,7 @@ namespace OptiscalerClient.Helpers
 
         public static readonly string[] KnownFileNames =
         {
-            LegacyFileName, CurrentFileName,
+            LegacyFileName, CurrentFileName, VulkanFileName,
             RadianceCacheFileName, LoaderFileName, FrameGenerationFileName, DenoiserFileName
         };
 
@@ -64,6 +65,8 @@ namespace OptiscalerClient.Helpers
             if (string.Equals(fileName, LegacyFileName, System.StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(fileName, CurrentFileName, System.StringComparison.OrdinalIgnoreCase))
                 return "Upscaler";
+            if (string.Equals(fileName, VulkanFileName, System.StringComparison.OrdinalIgnoreCase))
+                return "Upscaler (Vulkan)";
             if (string.Equals(fileName, RadianceCacheFileName, System.StringComparison.OrdinalIgnoreCase)) return "Radiance Cache";
             if (string.Equals(fileName, LoaderFileName, System.StringComparison.OrdinalIgnoreCase)) return "Loader";
             if (string.Equals(fileName, FrameGenerationFileName, System.StringComparison.OrdinalIgnoreCase)) return "Frame Generation";
@@ -82,7 +85,8 @@ namespace OptiscalerClient.Helpers
         public static string GetLogicalKey(string fileName)
         {
             if (string.Equals(fileName, LegacyFileName, System.StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(fileName, CurrentFileName, System.StringComparison.OrdinalIgnoreCase))
+                string.Equals(fileName, CurrentFileName, System.StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(fileName, VulkanFileName, System.StringComparison.OrdinalIgnoreCase))
                 return "Upscaler";
             if (string.Equals(fileName, LoaderFileName, System.StringComparison.OrdinalIgnoreCase)) return "Loader";
             if (string.Equals(fileName, FrameGenerationFileName, System.StringComparison.OrdinalIgnoreCase)) return "FrameGeneration";
@@ -163,6 +167,7 @@ namespace OptiscalerClient.Helpers
             {
                 var possibleFiles = System.IO.Directory.GetFiles(gameDir, "*fidelityfx*.dll")
                                     .Concat(System.IO.Directory.GetFiles(gameDir, "*amdxc*.dll"))
+                                    .Concat(System.IO.Directory.GetFiles(gameDir, "*amdvk*.dll"))
                                     .Distinct(System.StringComparer.OrdinalIgnoreCase);
 
                 foreach (var file in possibleFiles)
@@ -232,7 +237,7 @@ namespace OptiscalerClient.Helpers
         /// </summary>
         public static readonly string[] SwapTargetFileNames =
         {
-            LegacyFileName, CurrentFileName,
+            LegacyFileName, CurrentFileName, VulkanFileName,
             RadianceCacheFileName, LoaderFileName, FrameGenerationFileName, DenoiserFileName,
             CustomRdna2FileName
         };
@@ -284,7 +289,7 @@ namespace OptiscalerClient.Helpers
                 candidates.Add((Path.Combine(gameDir, targetName), Path.Combine(cacheDir, packagedUpscaler)));
             }
 
-            foreach (var extra in new[] { RadianceCacheFileName, LoaderFileName, FrameGenerationFileName, DenoiserFileName })
+            foreach (var extra in new[] { VulkanFileName, RadianceCacheFileName, LoaderFileName, FrameGenerationFileName, DenoiserFileName })
             {
                 if (files.Contains(extra, System.StringComparer.OrdinalIgnoreCase))
                 {

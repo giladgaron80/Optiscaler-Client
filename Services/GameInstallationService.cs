@@ -50,6 +50,7 @@ namespace OptiscalerClient.Services
             // FSR 4 mod DLLs (name changed between releases, plus FidelityFX SDK 2.0+ split-effect DLLs)
             Fsr4Int8DllHelper.LegacyFileName,
             Fsr4Int8DllHelper.CurrentFileName,
+            Fsr4Int8DllHelper.VulkanFileName,
             Fsr4Int8DllHelper.RadianceCacheFileName,
             Fsr4Int8DllHelper.LoaderFileName,
             Fsr4Int8DllHelper.FrameGenerationFileName,
@@ -858,10 +859,11 @@ namespace OptiscalerClient.Services
             // silently disable FSR 4 Swap for a game that already has it active.
             var existingExtrasDll = Fsr4Int8DllHelper.FindIn(gameDir);
             if (existingExtrasDll != null && !isRdna4 &&
-                string.Equals(Path.GetFileName(existingExtrasDll), Fsr4Int8DllHelper.CurrentFileName, StringComparison.OrdinalIgnoreCase))
+                (string.Equals(Path.GetFileName(existingExtrasDll), Fsr4Int8DllHelper.CurrentFileName, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(Path.GetFileName(existingExtrasDll), Fsr4Int8DllHelper.VulkanFileName, StringComparison.OrdinalIgnoreCase)))
             {
                 rollbackJournal.CaptureFile("OptiScaler.ini");
-                ConfigureFsr4IntFallback(gameDir, isRdna4, isRdna2);
+                ConfigureFsr4IntFallback(gameDir, isRdna4, isRdna2, GpuSelectionHelper.IsZ2eApu(gpu));
                 DebugWindow.Log($"[Install] Re-applied FSR 4 Swap forcing keys after profile write (Current extras DLL already present)");
             }
 
@@ -2199,6 +2201,7 @@ namespace OptiscalerClient.Services
                 "dlssg_to_fsr3_amd_is_better.dll",
                 Fsr4Int8DllHelper.LegacyFileName,
                 Fsr4Int8DllHelper.CurrentFileName,
+                Fsr4Int8DllHelper.VulkanFileName,
                 Fsr4Int8DllHelper.RadianceCacheFileName,
                 Fsr4Int8DllHelper.LoaderFileName,
                 Fsr4Int8DllHelper.FrameGenerationFileName,
@@ -3306,7 +3309,7 @@ namespace OptiscalerClient.Services
             }
         }
 
-        public void ConfigureFsr4IntFallback(string gameDir, bool isRdna4, bool isRdna2)
+        public void ConfigureFsr4IntFallback(string gameDir, bool isRdna4, bool isRdna2, bool isZ2eApu = false)
         {
             if (isRdna4) return;
 
@@ -3314,6 +3317,12 @@ namespace OptiscalerClient.Services
             ModifyOptiScalerIni(gameDir, "Fsr4ForceModel", "2", "FSR");
             ModifyOptiScalerIni(gameDir, "Fsr4ForceEnableInt8", "true", "FSR");
             ModifyOptiScalerIni(gameDir, "Fsr4Update", "true", "FSR");
+
+            if (isZ2eApu)
+            {
+                ModifyOptiScalerIni(gameDir, "Fsr4GpuSupport", "4", "FSR");
+                ModifyOptiScalerIni(gameDir, "Fsr4Model", "3", "FSR");
+            }
 
             if (isRdna2 && File.Exists(Path.Combine(ResolveExtrasRoot(gameDir), Fsr4Int8DllHelper.CustomRdna2FileName)))
                 ModifyOptiScalerIni(gameDir, "LoadCustomAmdxc64OnRdna2", "true", "Plugins");

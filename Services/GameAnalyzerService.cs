@@ -35,13 +35,15 @@ public class GameAnalyzerService
     // looks comparable. See the FSR step in AnalyzeGame.
     private static readonly string[] _fsrUpscalerNames = new[] {
         Fsr4Int8DllHelper.LegacyFileName,
-        Fsr4Int8DllHelper.CurrentFileName
+        Fsr4Int8DllHelper.CurrentFileName,
+        Fsr4Int8DllHelper.VulkanFileName
     };
     private static readonly string[] _fsrNames = new[] {
         "amd_fidelityfx_dx12.dll",
         "amd_fidelityfx_vk.dll",
         Fsr4Int8DllHelper.LegacyFileName,
         Fsr4Int8DllHelper.CurrentFileName,
+        Fsr4Int8DllHelper.VulkanFileName,
         "amd_fidelityfx_loader_dx12.dll",
         "ffx_fsr2_api_x64.dll",
         "ffx_fsr2_api_dx12_x64.dll",
@@ -734,9 +736,13 @@ public class GameAnalyzerService
             var info = FileVersionInfo.GetVersionInfo(filePath);
 
             // ProductVersion is usually more accurate for libraries like DLSS (e.g. "3.7.10.0")
-            // FileVersion might be "1.0.0.0" wrapper.
+            // FileVersion might be "1.0.0.0" wrapper. However, AMD FidelityFX driver DLLs
+            // (amdxcffx64.dll / amdvkffx64.dll) set ProductVersion to "2.4.0.0" while FileVersion
+            // carries the actual build number ("2.4.0.4370").
             string? version = null;
-            if (!string.IsNullOrEmpty(info.ProductVersion) && info.ProductVersion != "1.0.0.0" && !info.ProductVersion.StartsWith("1.0."))
+            bool fileVerHasMorePrecision = info.ProductBuildPart == 0 && info.ProductPrivatePart == 0 &&
+                                           (info.FileBuildPart != 0 || info.FilePrivatePart != 0);
+            if (!fileVerHasMorePrecision && !string.IsNullOrEmpty(info.ProductVersion) && info.ProductVersion != "1.0.0.0" && !info.ProductVersion.StartsWith("1.0."))
                 version = info.ProductVersion.Replace(',', '.').Split(' ')[0];
             else if (!string.IsNullOrEmpty(info.FileVersion))
                 version = info.FileVersion.Replace(',', '.').Split(' ')[0];

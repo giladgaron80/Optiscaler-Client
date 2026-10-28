@@ -38,9 +38,24 @@ namespace OptiscalerClient.Helpers
         {
             // "R9\d{3}": the Radeon AI PRO R9700 workstation card is RDNA 4 but has no " 9"/"RX 9".
             return gpu != null && gpu.Vendor == GpuVendor.AMD &&
+                   !IsZ2eApu(gpu) &&
                    (gpu.Name.Contains(" 9", StringComparison.OrdinalIgnoreCase) ||
                     gpu.Name.Contains("RX 9", StringComparison.OrdinalIgnoreCase) ||
                     Regex.IsMatch(gpu.Name, @"\bR9\d{3}\b", RegexOptions.IgnoreCase));
+        }
+
+        /// <summary>Ryzen Z2 Extreme / Strix Point RDNA 3.5 APUs (Radeon 890M / 880M) use the FSR 4.1.2
+        /// INT8 / INT8 Lite runtime (amdxcffx64.dll / amdvkffx64.dll v2.4.0.4370).</summary>
+        public static bool IsZ2eApu(GpuInfo? gpu)
+        {
+            if (gpu == null || gpu.Vendor != GpuVendor.AMD) return false;
+            return gpu.Name.Contains("890M", StringComparison.OrdinalIgnoreCase) ||
+                   gpu.Name.Contains("880M", StringComparison.OrdinalIgnoreCase) ||
+                   gpu.Name.Contains("Z2 Extreme", StringComparison.OrdinalIgnoreCase) ||
+                   gpu.Name.Contains("Z2E", StringComparison.OrdinalIgnoreCase) ||
+                   gpu.Name.Contains("Ryzen Z2", StringComparison.OrdinalIgnoreCase) ||
+                   gpu.Name.Contains("Ryzen AI Z2", StringComparison.OrdinalIgnoreCase) ||
+                   gpu.Name.Contains("Strix Point", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>RDNA 3 desktop (Radeon RX 7000 series) is now also whitelisted by AMD's official
